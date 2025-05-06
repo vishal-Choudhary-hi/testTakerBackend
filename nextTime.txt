@@ -1,0 +1,3 @@
+1. Add expiry logic in otp
+2. Make a gmail account or get the already made one and try to send emails
+3. Make a functionality to create tests

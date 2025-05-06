@@ -1,0 +1,22 @@
+extends EmailTemplateLayout
+
+block content
+    h3 Hello #{testInvitationName}, 
+    h4 ✉️ You’ve been invited to take the "#{testName}" test by #{testInviterName}!
+
+    h3 📝 Test Details
+    p 📄 Description: #{description}
+    p 🕒 Start Time: #{startTime}
+    p ⏰ End Time: #{endTime}
+    p ⏳ Duration: #{Math.floor(durationInSeconds / 3600)} hr #{Math.floor((durationInSeconds % 3600) / 60)} min
+    h4 Please note: You must begin the test anytime between the start and end time mentioned above. Late attempts may not be allowed.
+
+    if inviteEmailAdditionalContent
+        h4(style="font-weight:bold") Note from #{testInviterName} 💬
+        p #{inviteEmailAdditionalContent}
+
+    h3 🔗 Access Your Test Page
+    p Click the button below to view your test details and start when you're ready:
+    a(href=testLink, style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;") Go to Test Page
+
+    p(style="font-size: 14px; color: #888; margin-top: 30px;") If you received this email by mistake, no action is needed—you can safely disregard it.

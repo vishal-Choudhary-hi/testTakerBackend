@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int               @id @default(autoincrement())
+  name            String
+  emailId         String            @unique
+  otp             Int
+  status          Boolean
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  Test            Test[]
+  QuestionSection QuestionSection[]
+}
+
+model Log {
+  id        Int      @id @default(autoincrement())
+  type      String
+  typeName  String
+  url       String?
+  request   Json?
+  response  Json?
+  method    String?
+  headers   Json?
+  status    Int
+  userId    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmailLog {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  emailType     String
+  content       String    @db.Text
+  status        Boolean
+  sentOn        DateTime?
+  failureReason String    @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum TestStatus {
+  live
+  draft
+  result_pending
+  completed
+}
+
+enum CloudService {
+  cloudinary
+}
+
+enum ExpiryActions {
+  deleteAfterTestExpiry
+}
+
+enum UploadedByModelType {
+  userTestCreater
+}
+
+model Test {
+  id                              Int                     @id @default(autoincrement())
+  test_name                       String
+  description                     String
+  study_material                  String?
+  invite_email_additional_content String?
+  start_time                      DateTime
+  end_time                        DateTime
+  duration_in_seconds             Int
+  status                          TestStatus              @default(draft)
+  created_by                      Int
+  created_at                      DateTime                @default(now())
+  updated_at                      DateTime                @updatedAt
+  CreatedByUser                   User                    @relation(fields: [created_by], references: [id])
+  TestInstructions                TestInstruction[]
+  TestInvitations                 TestInvitation[]
+  TestParticipants                TestParticipant[]
+  SelectedOptionMapping           SelectedOptionMapping[]
+  QuestionSection                 QuestionSection[]
+}
+
+model TestInstruction {
+  id          Int      @id @default(autoincrement())
+  test_id     Int
+  heading     String
+  description String
+  created_by  Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  Test        Test     @relation(fields: [test_id], references: [id])
+}
+
+model Question {
+  id                             Int             @id @default(autoincrement())
+  question_section_id            Int
+  sequence                       Int
+  type_id                        Int
+  question                       String
+  image                          String?
+  negative_score_on_wrong_answer Int
+  score_on_correct_answer        Int
+  manual_scoring                 Boolean
+  created_by                     Int
+  created_at                     DateTime        @default(now())
+  updated_at                     DateTime        @updatedAt
+  QuestionType                   QuestionType    @relation(fields: [type_id], references: [id])
+  QuestionSection                QuestionSection @relation(fields: [question_section_id], references: [id])
+  Options                        Option[]
+}
+
+model QuestionSection {
+  id          Int        @id @default(autoincrement())
+  test_id     Int
+  label       String
+  description String
+  total_score Int
+  sequence    Int        @default(1)
+  Tests       Test       @relation(fields: [test_id], references: [id])
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  created_by  Int
+  CreatedBy   User       @relation(fields: [created_by], references: [id])
+  Question    Question[]
+}
+
+model Option {
+  id          Int      @id @default(autoincrement())
+  question_id Int
+  description String
+  image       String?
+  is_correct  Boolean
+  created_by  Int
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  Question    Question @relation(fields: [question_id], references: [id])
+}
+
+model QuestionType {
+  id                            Int        @id @default(autoincrement())
+  type                          String
+  label                         String
+  description                   String
+  allow_options                 Boolean    @default(false)
+  allow_multiple_correct_answer Boolean    @default(false)
+  score_manually                Boolean    @default(false)
+  created_at                    DateTime   @default(now())
+  updated_at                    DateTime   @updatedAt
+  Questions                     Question[]
+}
+
+model TestInvitation {
+  id                             Int               @id @default(autoincrement())
+  test_id                        Int
+  email                          String
+  name                           String
+  verification_image_document_id Int
+  accepted                       Boolean           @default(false)
+  created_by                     Int
+  additional_details             Json?
+  email_status                   Boolean           @default(false)
+  status                         Boolean           @default(true)
+  created_at                     DateTime          @default(now())
+  updated_at                     DateTime          @updatedAt
+  VerificationImage              Documents         @relation(fields: [verification_image_document_id], references: [id])
+  Test                           Test              @relation(fields: [test_id], references: [id])
+  TestParticipant                TestParticipant[]
+
+  @@unique([test_id, email])
+}
+
+model TestParticipant {
+  id                 Int            @id @default(autoincrement())
+  test_id            Int
+  test_invitation_id Int
+  participated       Boolean
+  created_at         DateTime       @default(now())
+  updated_at         DateTime       @updatedAt
+  Test               Test           @relation(fields: [test_id], references: [id])
+  TestInvite         TestInvitation @relation(fields: [test_invitation_id], references: [id])
+  TestScores         TestScore[]
+}
+
+model SelectedOptionMapping {
+  id          Int      @id @default(autoincrement())
+  test_id     Int
+  user_id     Int
+  option_ids  Json
+  input_value String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  Test        Test     @relation(fields: [test_id], references: [id])
+}
+
+model TestScore {
+  id                   Int             @id @default(autoincrement())
+  test_participant_id  Int
+  score                Int
+  total_positive_score Int
+  total_negative_score Int
+  participated         Boolean
+  created_at           DateTime        @default(now())
+  updated_at           DateTime        @updatedAt
+  TestParticipant      TestParticipant @relation(fields: [test_participant_id], references: [id])
+}
+
+model DocumentCategory {
+  id               Int           @id @default(autoincrement())
+  key              String
+  name             String
+  logo             String
+  expiryAction     ExpiryActions @default(deleteAfterTestExpiry)
+  allowedFileTypes Json
+  maxFileSize      Int
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+  Documents        Documents[]
+}
+
+model Documents {
+  id                  Int                 @id @default(autoincrement())
+  name                String?
+  path                String
+  link                String
+  cloud_service       CloudService        @default(cloudinary)
+  uploadedByModelId   Int
+  UploadedByModelType UploadedByModelType
+  documentCategoryID  DocumentCategory    @relation(fields: [documentCategoryId], references: [id])
+  status              Boolean
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  documentCategoryId  Int
+  TestInvitation      TestInvitation[]
+}
