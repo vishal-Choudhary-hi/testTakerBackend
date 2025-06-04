@@ -11,8 +11,8 @@ model User {
   id              Int               @id @default(autoincrement())
   name            String
   emailId         String            @unique
-  otp             Int
-  status          Boolean
+  otp             Int?
+  status          Boolean           @default(false)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   Test            Test[]
@@ -98,7 +98,7 @@ model TestInstruction {
 }
 
 model Question {
-  id                             Int             @id @default(autoincrement())
+  id                             Int                     @id @default(autoincrement())
   question_section_id            Int
   sequence                       Int
   type_id                        Int
@@ -108,11 +108,12 @@ model Question {
   score_on_correct_answer        Int
   manual_scoring                 Boolean
   created_by                     Int
-  created_at                     DateTime        @default(now())
-  updated_at                     DateTime        @updatedAt
-  QuestionType                   QuestionType    @relation(fields: [type_id], references: [id])
-  QuestionSection                QuestionSection @relation(fields: [question_section_id], references: [id])
+  created_at                     DateTime                @default(now())
+  updated_at                     DateTime                @updatedAt
+  QuestionType                   QuestionType            @relation(fields: [type_id], references: [id])
+  QuestionSection                QuestionSection         @relation(fields: [question_section_id], references: [id])
   Options                        Option[]
+  SelectedOptionMapping          SelectedOptionMapping[]
 }
 
 model QuestionSection {
@@ -170,32 +171,44 @@ model TestInvitation {
   updated_at                     DateTime          @updatedAt
   VerificationImage              Documents         @relation(fields: [verification_image_document_id], references: [id])
   Test                           Test              @relation(fields: [test_id], references: [id])
-  TestParticipant                TestParticipant[]
+  TestParticipant                TestParticipant?
 
   @@unique([test_id, email])
 }
 
 model TestParticipant {
-  id                 Int            @id @default(autoincrement())
-  test_id            Int
-  test_invitation_id Int
-  participated       Boolean
-  created_at         DateTime       @default(now())
-  updated_at         DateTime       @updatedAt
-  Test               Test           @relation(fields: [test_id], references: [id])
-  TestInvite         TestInvitation @relation(fields: [test_invitation_id], references: [id])
-  TestScores         TestScore[]
+  id                    Int                     @id @default(autoincrement())
+  test_id               Int
+  test_invitation_id    Int
+  participated          Boolean
+  created_at            DateTime                @default(now())
+  updated_at            DateTime                @updatedAt
+  Test                  Test                    @relation(fields: [test_id], references: [id])
+  TestInvite            TestInvitation          @relation(fields: [test_invitation_id], references: [id])
+  TestScores            TestScore?
+  SelectedOptionMapping SelectedOptionMapping[]
+
+  @@unique([test_id, test_invitation_id])
+  @@unique([test_invitation_id])
 }
 
 model SelectedOptionMapping {
-  id          Int      @id @default(autoincrement())
-  test_id     Int
-  user_id     Int
-  option_ids  Json
-  input_value String
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-  Test        Test     @relation(fields: [test_id], references: [id])
+  id                  Int             @id @default(autoincrement())
+  test_id             Int
+  test_participant_id Int
+  question_id         Int
+  option_ids          Json?
+  input_value         String?
+  skipped             Boolean @default(false)
+  is_correct    Boolean? @default(false)
+  manual_score        Int?
+  score              Int?
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+  Question            Question        @relation(fields: [question_id], references: [id])
+  testParticipant     TestParticipant @relation(fields: [test_participant_id], references: [id])
+  Test                Test            @relation(fields: [test_id], references: [id])
+  @@unique([test_id, test_participant_id, question_id])
 }
 
 model TestScore {
@@ -204,10 +217,10 @@ model TestScore {
   score                Int
   total_positive_score Int
   total_negative_score Int
-  participated         Boolean
   created_at           DateTime        @default(now())
   updated_at           DateTime        @updatedAt
   TestParticipant      TestParticipant @relation(fields: [test_participant_id], references: [id])
+  @@unique([test_participant_id])
 }
 
 model DocumentCategory {

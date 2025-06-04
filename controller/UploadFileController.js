@@ -3,7 +3,6 @@ const { apiLog } = require("../utils/LogUtility");
 const { getUserData } = require("../utils/userUtility");
 const CloudinaryUtility = require("../utils/CloudinaryUtility");
 const { prisma } = require('../prisma/getPrismaClient');
-const multer = require('multer');
 
 const uploadFileToCloud = async (req, res) => {
     let resBody = null;

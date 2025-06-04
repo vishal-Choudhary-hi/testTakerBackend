@@ -41,11 +41,13 @@ const getEmailSubject = (emailType, additionalData = null) => {
     let subject = null;
     switch (emailType) {
         case 'UserOTP':
-            subject = `TestTaker: User ${additionalData.alreadyRegisteredUser ? "Login" : "Registration"} OTP 🔒`;
+            subject = `TestEra: User ${additionalData.alreadyRegisteredUser ? "Login" : "Registration"} OTP 🔒`;
             break;
         case "testInviteEmail":
-            subject = `TestTaker: 📩 Invitation to attend ${additionalData.testName}`;
+            subject = `TestEra: 📩 Invitation to attend ${additionalData.testName}`;
             break;
+        case "testResultEmail":
+            subject = `TestEra: 🏆 Your Test Result for ${additionalData.testName}`;
         default:
             break;
     }
@@ -64,6 +66,10 @@ const getEmailContent = (emailType, additionalData = null) => {
             break;
         case "testInviteEmail":
             emailTemplateFileName = "testInviteEmail.pug"
+            break;
+        case "testResultEmail":
+            emailTemplateFileName = "testResultEmail.pug"
+            break;
         default:
             break;
     }

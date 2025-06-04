@@ -4,6 +4,8 @@ const { apiLog } = require('../utils/LogUtility');
 const Joi = require("joi");
 const bulkTestInviteEmailQueue = require('../queue/bulkTestInviteEmailQueue');
 const { sendMail } = require('../utils/EmailUtility');
+const { AITextGeneration } = require('../utils/AITextGenerationUtil');
+const { json } = require('body-parser');
 
 const createNewTest = async (req, res) => {
     let resBody = null;
@@ -107,12 +109,41 @@ const getAllTest = async (req, res) => {
             return res.status(statusCode).json(resBody);
         }
         const userData = getUserData();
+        let additionalFilters = {};
+        if (req.query.search) {
+            additionalFilters.test_name = {
+                contains: req.query.search,
+            };
+        }
+
+        if (req.query.status) {
+            additionalFilters.status = req.query.status;
+        }
+
+        if (req.query.startDate && req.query.endDate) {
+            const start = new Date(req.query.startDate);
+            const end = new Date(req.query.endDate);
+
+            additionalFilters.AND = [
+                {
+                    start_time: {
+                        lte: end, // test can start before or during the selected range
+                    },
+                },
+                {
+                    end_time: {
+                        gte: start, // test can end after or during the selected range
+                    },
+                },
+            ];
+        }
+
         const getPaginatedTests = async (userId, page = 1, limit = 5) => {
             const skip = (page - 1) * limit; // Calculate offset
 
             const [testData, totalCount] = await Promise.all([
                 prisma.test.findMany({
-                    where: { created_by: userId },
+                    where: { created_by: userId,...additionalFilters },
                     skip: skip,
                     take: +limit,
                     orderBy: { id: "desc" }, // Order by latest created tests (optional)
@@ -316,7 +347,9 @@ const getTestWithId = async (req, res) => {
     let statusCode = 200;
     const ValidationJson = Joi.object({
         testId: Joi.number().integer().required(),
-        role: Joi.string()
+        role: Joi.string(),
+        page: Joi.number().integer().optional(),
+        limit: Joi.number().integer().optional()
     });
     try {
         const { error } = ValidationJson.validate(req.query);
@@ -330,30 +363,17 @@ const getTestWithId = async (req, res) => {
         const role = req.query.role;
         const testId = req.query.testId;
         const userData = getUserData();
-        if (role === 'creator') {
-            const createrTest = await prisma.test.findFirst({
-                where: {
-                    id: parseInt(testId),
-                    created_by: userData.id
-                }
-            })
-            if (!createrTest) {
-                throw new Error("Unauthorized Access");
+        const createrTest = await prisma.test.findFirst({
+            where: {
+                id: parseInt(testId),
+                created_by: userData.id
             }
-        } else if (role == 'participant') {
-            const testInvitation = await prisma.testInvitation.findFirst({
-                where: {
-                    test_id: parseInt(testId),
-                    email: userData.emailId,
-                    status: true
-                }
-            })
-            if (!testInvitation) {
-                throw new Error("Unauthorized Access");
-            }
-        } else {
-            throw new Error("Unauthorized Access");
+        })
+        if (!createrTest) {
+            throw new Error("Unauthorized Access"); 
         }
+        const skip= req.query.page ? (req.query.page - 1) * req.query.limit : 0;
+        const limit = req.query.limit || 10;
         let testDetails = await prisma.test.findUnique({
             where: { id: parseInt(testId) },
             select: {
@@ -377,6 +397,7 @@ const getTestWithId = async (req, res) => {
                         status: true
                     },
                     select: {
+                        id: true,
                         email: true,
                         name: true,
                         accepted: true,
@@ -386,6 +407,22 @@ const getTestWithId = async (req, res) => {
                         VerificationImage: {
                             select: {
                                 link: true
+                            }
+                        },
+                        TestParticipant:{
+                            select: {
+                                participated: true,
+                                SelectedOptionMapping:{
+                                    select:{
+                                        question_id: true,
+                                        option_ids:true,
+                                        input_value:true,
+                                        skipped:true,
+                                        is_correct:true,
+                                        manual_score:true,
+                                        score: true,
+                                    }
+                                }
                             }
                         }
                     }
@@ -418,7 +455,17 @@ const getTestWithId = async (req, res) => {
                 }
             }
         });
-
+        const now = new Date();
+        const testEndTime = new Date(testDetails.end_time);
+        if (testEndTime > now && testDetails.status === 'live') {
+            await prisma.test.update({
+                where: { id: parseInt(testId) },
+                update: {
+                    status: 'result_pending'
+                }
+            })
+            testDetails.status='result_pending';
+        }
         resBody = {
             data: testDetails,
             message: "Test Details Returned Successfully"
@@ -559,13 +606,7 @@ const changeTestStatus = async (req, res) => {
                 throw new Error("Test Has Already Started");
             }
         }
-        if (status == 'result_pending') {
-            const now = new Date();
-            const testEndTime = new Date(testDetails.end_time);
-            if (testEndTime > now) {
-                throw new Error("Test Is Not Yet Ended");
-            }
-        }
+
         await prisma.test.update({
             where: {
                 id: testId
@@ -655,5 +696,410 @@ const sendBulkTestInviteEmail = async (testID) => {
         });
     }
 }
+const getQuestionRecomendationFromAI=async(req,res)=> {
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({
+        testId: Joi.number().integer().required(),
+        aiInstructions:Joi.object({
+            purpose:Joi.string().required(),
+            questionTypes:Joi.array().items(Joi.object({
+                questionTypeId:Joi.number().integer().required(),
+                questionCount:Joi.number().integer().required(),
+            })).required(),
+            topics:Joi.array().items(Joi.string()).required(),
+            difficultyLevels:Joi.array().items(Joi.string()).required(),
+            subjects:Joi.array().items(Joi.string()).required(),
+        }).required()
+    });
+    try {
+        throw new Error("AI Text Generation Feature is not available yet");
+        
+        const { error } = ValidationJson.validate(req.body);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid query parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const userData = getUserData();
+        const testId = req.body.testId;
+        const aiInstructions = req.body.aiInstructions;
+        const pastTestAICount= await prisma.testAIQuestionRecommendation.count({
+            where: {
+                test_id: testId,
+            }
+        });
+        if (pastTestAICount >= process.env.MAX_TEST_AI_QUESTION_RECOMENDATION_COUNT) {
+            throw new Error("Max AI Question Recomendations Are Already Generated For This Test");
+        }
+        // Check if the test exists and is created by the user
+        const testDetails = await prisma.test.findFirst({
+            where: {
+                id: parseInt(testId),
+                created_by: userData.id
+            }
+        });   
+        if (!testDetails) {
+            throw new Error("No test found");
+        }
+        const { purpose, questionTypes, topics, difficultyLevels, subjects } = aiInstructions;
+        let allQuestionTypes = await prisma.questionType.findMany({
+            select: {
+                id: true,
+                label: true
+            }
+        });
+        const sanitizedQuestionTypes = allQuestionTypes.map(q => ({
+            id: q.id,
+            label: q.label,
+          }));
+      
+        let inputString = {
+          purpose: `${purpose} Generate 40 questions of type "${allQuestionTypes.find(q => q.id === questionTypes.questionTypeId)?.label}" for subject(s): ${subjects.join(", ")}. Focus on topics: ${topics.join(", ")}. Difficulty levels should include: ${difficultyLevels.join(", ")}. Include both theory and numerical questions where relevant. For MCQs, provide exactly 4 options and mark the correct one(s).Please return the json only in the provided response_format , and dont include any other text.`,
+          question_types: sanitizedQuestionTypes,
+          response_format: {
+            questions: [
+              {
+                question: "string",
+                options: [
+                  {
+                    description: "string",
+                    is_correct: true
+                  }
+                ],
+                question_type_id: questionTypes.questionTypeId
+              }
+            ]
+          }
+        };
+        inputString=JSON.stringify(inputString);
+        const aiResponse=await AITextGeneration(inputString);
+        if(!aiResponse.status) {
+            throw new Error("AI Text Generation Failed");
+        }
+        data =aiResponse.aiResponse;
 
-module.exports = { createNewTest, updateTestQuestion, getQuestionTypes, getAllTest, getTestWithId, inviteParticipants, changeTestStatus };
+        // Save the AI question recommendation to the database
+        await prisma.testAIQuestionRecomendation.create({
+            data: {
+                test_id: testId,
+                question_recomendation: data,
+                created_by: userData.id
+            }
+        });
+
+        data = JSON.parse(data);
+
+        resBody = {
+            data,
+            message: "AI Question Recomendation Fetched Successfully",
+        }
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+
+const getAllTestStatues=async(req,res)=>{
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({}).required()
+    try {
+        const { error } = ValidationJson.validate(req.query);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid query parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const data = [
+            { id: 'draft', label: 'Draft' },
+            { id: 'live', label: 'Live' },
+            { id: 'result_pending', label: 'Result Pending' },
+            { id: 'completed', label: 'Completed' },
+        ];
+        resBody = {
+            'data': data,
+            'message': "Test Statuses Fetched Successfully"
+        };
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+const getTestParticipantQuestion=async(req, res) => {
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({
+        testId: Joi.number().integer().required(),
+        participantId: Joi.number().integer().required()
+    });
+    try {
+        const { error } = ValidationJson.validate(req.query);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid query parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const userData = getUserData();
+        const testId = req.query.testId;
+        const participantId = req.query.participantId;
+        const testDetails = await prisma.test.findFirst({
+            where: {
+                id: parseInt(testId),
+                created_by: userData.id
+            }
+        });
+        if (!testDetails) {
+            throw new Error("No test found");
+        }
+        const participantDetails = await prisma.testInvitation.findFirst({
+            where: {
+                id: parseInt(participantId),
+                Test: {
+                    id: parseInt(testId)
+                }
+            },
+            select: {
+                TestParticipant: {
+                    select: {
+                        SelectedOptionMapping: {
+                            select: {
+                                question_id: true,
+                                option_ids: true,
+                                input_value: true,
+                                skipped: true,
+                                is_correct: true,
+                                manual_score: true,
+                                Question: {
+                                    select: {
+                                        id:true,
+                                        question: true,
+                                        image: true,
+                                        negative_score_on_wrong_answer: true,
+                                        score_on_correct_answer: true,
+                                        manual_scoring: true,
+                                        type_id: true,
+                                        QuestionSection: {
+                                            select: {
+                                                label: true,
+                                                description: true,
+                                                total_score: true
+                                            }
+                                        },
+                                        Options: {
+                                            select: {
+                                                id:true,
+                                                description: true,
+                                                image: true,
+                                                is_correct: true
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (!participantDetails) {
+            throw new Error("No participant found");
+        }
+        resBody = {
+            data: participantDetails.TestParticipant.SelectedOptionMapping,
+            message: "Test Participant Questions Returned Successfully"
+        };
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+const changeScoreManually = async (req, res) => {
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({
+        testId: Joi.number().integer().required(),
+        participantId: Joi.number().integer().required(),
+        questionId: Joi.number().integer().required(),
+        manualScore: Joi.number().integer().required()
+    });
+    try {
+        const { error } = ValidationJson.validate(req.body);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid query parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const userData = getUserData();
+        const testId = req.body.testId;
+        const participantId = req.body.participantId;
+        const questionId = req.body.questionId;
+        const manualScore = req.body.manualScore;
+
+        // Check if the test exists and is created by the user
+        const testDetails = await prisma.test.findFirst({
+            where: {
+                id: parseInt(testId),
+                created_by: userData.id
+            }
+        });
+        if (!testDetails) {
+            throw new Error("No test found");
+        }
+
+        // Check if the participant exists in the test
+        const participantDetails = await prisma.testInvitation.findFirst({
+            where: {
+                id: parseInt(participantId),
+                Test: {
+                    id: parseInt(testId)
+                }
+            }
+        });
+        if (!participantDetails) {
+            throw new Error("No participant found");
+        }
+
+        // Update the manual score for the selected question
+        await prisma.selectedOptionMapping.update({
+            where: {
+                test_id_test_participant_id_question_id:{
+                    test_id: parseInt(testId),
+                    test_participant_id: parseInt(participantId),
+                    question_id: parseInt(questionId)
+                }
+            },
+            data: {
+                manual_score: manualScore,
+            }
+        });
+        //update the total score for the participant
+        resBody = {
+            data: [],
+            message: "Manual Score Updated Successfully"
+        };
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+
+const releaseTestResult = async (req, res) => {
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({
+        testId: Joi.number().integer().required(),
+    });
+    try {
+        const { error } = ValidationJson.validate(req.body);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid query parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const userData = getUserData();
+        const testId = req.body.testId;
+
+        const testCompletedStatus = 'completed'; // Define the status to update to
+
+        // Check if the test exists and is created by the user
+        const testDetails = await prisma.test.findFirst({
+            where: {
+                id: parseInt(testId),
+                created_by: userData.id
+            }
+        });
+        if (!testDetails) {
+            throw new Error("No test found");
+        }
+
+        await prisma.test.update({
+            where: {
+                id: parseInt(testId)
+            },
+            data: {
+                status: testCompletedStatus
+            }
+        });
+        
+         const testParticipant=await prisma.testParticipant.findMany({
+            where: {
+                test_id: parseInt(testId),
+            },
+            select: {
+                id: true,
+                TestInvite: {
+                    select: {
+                        email: true,
+                        name: true
+                    }
+                },
+                SelectedOptionMapping: {
+                    select: {
+                        manual_score: true,
+                        score: true,
+                    }
+                }
+            }
+        });
+        // Calculate total score for each participant
+        for (const participant of testParticipant) {
+            const totalScore = participant.SelectedOptionMapping.reduce((acc, curr) => acc + (curr.manual_score || curr.score || 0), 0);
+            const mailData={
+                testName: testDetails.test_name,
+                participantName: participant.TestInvite.name,
+                totalScore: totalScore,
+                resultsLink: `${process.env.APP_URL}participator/test/${testId}/result`
+            }
+            await sendMail(participant.TestInvite.email, "testResultEmail", mailData);
+        }
+        resBody = {
+            data: [],
+            message: "Test Result Released and Status Updated Successfully"
+        };
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+module.exports = { createNewTest, updateTestQuestion, getQuestionTypes, getAllTest, getTestWithId, inviteParticipants, changeTestStatus, getQuestionRecomendationFromAI,getAllTestStatues,getTestParticipantQuestion,changeScoreManually,releaseTestResult };

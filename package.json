@@ -23,6 +23,7 @@
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.2",
+    "nlpcloud": "^2.0.8",
     "nodemailer": "^6.10.0",
     "nodemon": "^3.1.9",
     "pug": "^3.0.3"

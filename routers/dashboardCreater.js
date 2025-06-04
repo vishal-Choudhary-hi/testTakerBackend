@@ -8,6 +8,15 @@ router.post('/inviteParticipants', CreaterDashboard.inviteParticipants);
 router.get('/getQuestionTypes', CreaterDashboard.getQuestionTypes);
 router.post('/updateTestQuestion', CreaterDashboard.updateTestQuestion);
 router.post('/changeTestStatus', CreaterDashboard.changeTestStatus);
+router.post('/getQuestionRecomendationFromAI', CreaterDashboard.getQuestionRecomendationFromAI);
+router.get('/getAllTestStatues', CreaterDashboard.getAllTestStatues);
+router.get('/getTestParticipantQuestion', CreaterDashboard.getTestParticipantQuestion);
+router.post('/changeScoreManually', CreaterDashboard.changeScoreManually);
+router.post('/releaseTestResult', CreaterDashboard.releaseTestResult);
+
+
+
+
 
 
 module.exports = router;

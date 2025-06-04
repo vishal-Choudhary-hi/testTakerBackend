@@ -1,0 +1,21 @@
+extends EmailTemplateLayout
+
+block content
+  p(style="font-size: 16px; font-weight: bold;") Hi #{participantName},
+
+  p Thank you for participating in the "#{testName}" assessment.
+
+  p(style="margin-top: 20px; font-size: 15px; font-weight: bold;") 📝 Your Result:
+  p(style="font-size: 16px;") You scored #{totalScore}.
+
+  p(style="margin-top: 20px;")
+    | You can view a detailed breakdown of your answers, correct responses, and section-wise performance by clicking the button below:
+
+  a(href=resultsLink, style="display:inline-block; margin-top:12px; padding:10px 20px; background-color:#007bff; color:white; text-decoration:none; border-radius:5px; font-weight:bold;") View My Results
+
+
+  p(style="font-size: 13px; color: #888; margin-top: 30px;")
+    | If you received this email by mistake, you can safely ignore it.
+
+  p(style="font-size: 13px; color: #888;")
+    | For any questions, feel free to reply to this email.

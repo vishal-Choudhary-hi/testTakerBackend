@@ -9,9 +9,10 @@ const getUser = async (req, res) => {
     let resBody = null;
     let statusCode = 200;
     try {
+        const userData= getUserData();
         resBody = {
-            'data': getUserData(),
-            'message': 'User data fetched'
+            'data': userData,
+            'message': 'Hi ' + userData.name + ', Welcome to the TeatEra'
         };
     } catch (error) {
         statusCode = 400;
@@ -84,12 +85,19 @@ const registerNewUser = async (req, res) => {
         }
         let email = req.body.email;
         let name = req.body.name;
-        const userWithEmail = await prisma.user.findUnique({
-            where: { emailId: email, status: true }
+        let userWithEmail = await prisma.user.findUnique({
+            where: { emailId: email}
         });
         if (userWithEmail) {
             throw new Error('EmailId Already Registered');
         }
+        userWithEmail = await prisma.user.create({
+            data: { 
+                emailId: email,
+                name: name,
+                status: true
+            }
+        });
         let alreadyRegisteredUser = false;
         otpData = {
             name,
