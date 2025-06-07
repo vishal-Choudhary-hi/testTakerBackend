@@ -5,9 +5,12 @@ const authMiddleware = require('./middleware/authMiddleware');
 const dashboardCreater = require('./routers/dashboardCreater');
 const dashboardParticipant = require('./routers/dashboardParticipant');
 const UploadFileController = require('./controller/UploadFileController');
+const BaseController = require('./controller/BaseController');
 const multer = require('multer');
 
 const upload = multer({ dest: 'uploads/' });
+
+router.get("/base/keepServerLive",BaseController.keepServerLive);
 
 router.post("/registerNewUser", userController.registerNewUser);
 router.post("/getUserWithEmail", userController.getUserWithEmail);
