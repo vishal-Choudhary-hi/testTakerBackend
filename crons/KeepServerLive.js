@@ -19,7 +19,7 @@ const keepServerLive=()=>{
 
 module.exports = {
     data:{
-        name: 'keepServerLive',
+        name: 'KeepServerLive',
         schedule: '*/14 * * * *', // every 14 mins
         payload: { }
     },
