@@ -17,7 +17,7 @@ const TruncateTestChatsTable=async()=>{
 module.exports = {
     data:{
         name: 'TruncateTestChatsTable',
-        schedule: '30 23 * * *', // every day at 01:30 AM
+        schedule: '30 01 * * *', // every day at 01:30 AM
         payload: { }
     },
   handler: TruncateTestChatsTable

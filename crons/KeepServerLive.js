@@ -20,7 +20,7 @@ const keepServerLive=async()=>{
 module.exports = {
     data:{
         name: 'KeepServerLive',
-        schedule: '*/1 * * * *', // every 14 mins
+        schedule: '*/14 * * * *', // every 14 mins
         payload: { }
     },
   handler: keepServerLive
