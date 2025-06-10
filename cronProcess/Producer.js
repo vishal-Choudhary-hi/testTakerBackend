@@ -12,7 +12,6 @@ const queue = new Queue('cron-jobs', { connection });
 
 jobs.forEach(job => {
   cron.schedule(job.schedule, async () => {
-    console.log(`📥 Queuing job "${job.name}"`);
     await queue.add(job.name, job.payload || {});
   });
 });

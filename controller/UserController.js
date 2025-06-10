@@ -190,4 +190,44 @@ const GenerateAndSendAuthenticationOTP = async (data) => {
     }
 }
 
-module.exports = { getUser, registerNewUser, verifyOTP, getUserWithEmail }
+const getUserTestMessage=async (req, res) => {
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({
+        testId: Joi.number().integer().required(),
+        receiverId:Joi.number().integer().optional()
+    });
+    try {
+        const { error } = ValidationJson.validate(req.query);
+        if (error) {
+            apiLog(req, resBody, statusCode);
+            return res.status(400).json({ error: error.details[0].message });
+        }
+        const userId = getUserData().id;
+        if (!userId) {
+            throw new Error("User not authenticated");
+        }
+        let additionalFilters = {};
+        if(req.query.receiver_id){
+            additionalFilters.receiver_id = req.query.receiver_id;
+        }
+        const testMessages = await prisma.testChats.findMany({
+            where: { sender_id: userId,test_id: parseInt(req.query.testId),...additionalFilters },
+        });
+        resBody = {
+            'data': testMessages,
+            'message': 'Test messages retrieved successfully'
+        };
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+
+module.exports = { getUser, registerNewUser, verifyOTP, getUserWithEmail, getUserTestMessage }

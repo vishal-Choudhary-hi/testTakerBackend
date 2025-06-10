@@ -1,3 +1,4 @@
 module.exports = [
-    require('./KeepServerLive').data
+    require('./KeepServerLive').data,
+    require('./TruncateTestChatsTable').data,
 ];

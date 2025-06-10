@@ -13,10 +13,6 @@ router.get('/getAllTestStatues', CreaterDashboard.getAllTestStatues);
 router.get('/getTestParticipantQuestion', CreaterDashboard.getTestParticipantQuestion);
 router.post('/changeScoreManually', CreaterDashboard.changeScoreManually);
 router.post('/releaseTestResult', CreaterDashboard.releaseTestResult);
-
-
-
-
-
+router.get('/testParticipantWarnings', CreaterDashboard.testParticipantWarnings);
 
 module.exports = router;

@@ -17,6 +17,7 @@ router.post("/getUserWithEmail", userController.getUserWithEmail);
 router.post("/verifyUserLoginOTP", userController.verifyOTP);
 
 router.get("/user", authMiddleware.setUserDataMiddleware, userController.getUser);
+router.get("/getUserTestMessage",authMiddleware.setUserDataMiddleware, userController.getUserTestMessage);
 
 router.use('/dashboard/participant', authMiddleware.setUserDataMiddleware, dashboardParticipant);
 router.use('/dashboard/creater', authMiddleware.setUserDataMiddleware, dashboardCreater);

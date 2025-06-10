@@ -145,12 +145,19 @@ const getTestBasicDetails = async (req, res) => {
                         end_time: true,
                         duration_in_seconds: true,
                         status: true,
+                        total_warning_allowed:true,
+                        created_by: true,
                         TestInstructions: {
                             select: {
                                 heading: true,
                                 description: true,
                             },
                         },
+                        CreatedByUser:{
+                            select:{
+                                name: true,
+                            }
+                        }
                     },
                 },
                 TestParticipant: {
@@ -689,4 +696,74 @@ const testParticipantResults = async (req, res) => {
     return res.status(statusCode).json(resBody);
 }
 
-module.exports = { allUserParticipationTest, getTestBasicDetails, acceptInvitation, getTestVerificationImage, getTestQuestionSections,sectionTestQuestions,startTest,saveAnswer,testParticipantResults };
+const saveTestParticipantWarnings=async (req, res) => {
+    let resBody = null;
+    let statusCode = 200;
+
+    const ValidationSchema = Joi.object({
+        testId: Joi.number().required(),
+        warningMessage: Joi.string().required(),
+    });
+
+    try {
+        const { error } = ValidationSchema.validate(req.body);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid Parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const { testId, warningMessage } = req.body;
+        const userData = getUserData();
+
+        const testParticipant = await prisma.testParticipant.findFirst({
+            where: {
+                test_id: parseInt(testId),
+                TestInvite: {
+                    email: userData.emailId,
+                    status: true,
+                }
+            },
+            select: {
+                id: true,
+            }
+        });
+
+        if (!testParticipant) {
+            throw new Error("User Not Invited to participate in this test");
+        }
+
+        await prisma.participantWarnings.create({
+            data: {
+                warning_message: warningMessage,
+                participant_id: testParticipant.id,
+            }
+        });
+        const participantWarnings=await prisma.testParticipant.findMany({
+            where: {
+                id: testParticipant.id,
+            },
+            select: {
+                warning_message:true
+            }
+        });
+        let allWarnings = participantWarnings.map(warning => warning.warning_message).flat();
+        resBody = {
+            data: allWarnings,
+            message: "Test Participant Warnings Updated"
+        };
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            data: null,
+            message: error.message
+        };
+        console.error(error);
+    }
+
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+
+module.exports = { allUserParticipationTest, getTestBasicDetails, acceptInvitation, getTestVerificationImage, getTestQuestionSections,sectionTestQuestions,startTest,saveAnswer,testParticipantResults,saveTestParticipantWarnings };

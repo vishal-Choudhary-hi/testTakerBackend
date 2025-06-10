@@ -19,6 +19,7 @@ const createNewTest = async (req, res) => {
         studyMaterial: Joi.optional(),
         inviteEmailAdditionalContent: Joi.optional(),
         testId: Joi.optional(),
+        totalWarningAllowed: Joi.number().integer().optional(),
         testInstructions: Joi.array().items(
             Joi.object({
                 heading: Joi.string().required(),
@@ -56,6 +57,7 @@ const createNewTest = async (req, res) => {
             duration_in_seconds: req.body.testDurationInSeconds,
             created_by: userData.id,
             status: 'draft',
+            total_warning_allowed:req.body.totalWarningAllowed??50,
             TestInstructions: { create: testInstructions }
         };
         let testData;
@@ -385,6 +387,7 @@ const getTestWithId = async (req, res) => {
                 start_time: true,
                 end_time: true,
                 duration_in_seconds: true,
+                total_warning_allowed:true,
                 status: true,
                 TestInstructions: {
                     select: {
@@ -409,6 +412,11 @@ const getTestWithId = async (req, res) => {
                                 link: true
                             }
                         },
+                        InviteUser:{
+                            select:{
+                                id: true,
+                            }
+                        },
                         TestParticipant:{
                             select: {
                                 participated: true,
@@ -422,6 +430,11 @@ const getTestWithId = async (req, res) => {
                                         manual_score:true,
                                         score: true,
                                     }
+                                },
+                                _count: {
+                                    select: {
+                                        TestParticipantWarnings: true,
+                                    },
                                 }
                             }
                         }
@@ -460,7 +473,7 @@ const getTestWithId = async (req, res) => {
         if (testEndTime > now && testDetails.status === 'live') {
             await prisma.test.update({
                 where: { id: parseInt(testId) },
-                update: {
+                data: {
                     status: 'result_pending'
                 }
             })
@@ -599,13 +612,6 @@ const changeTestStatus = async (req, res) => {
         if (!testDetails) {
             throw new Error("No test found");
         }
-        if (status == 'live') {
-            const now = new Date();
-            const testStartTime = new Date(testDetails.start_time);
-            if (testStartTime < now) {
-                throw new Error("Test Has Already Started");
-            }
-        }
 
         await prisma.test.update({
             where: {
@@ -713,7 +719,6 @@ const getQuestionRecomendationFromAI=async(req,res)=> {
         }).required()
     });
     try {
-        throw new Error("AI Text Generation Feature is not available yet");
         
         const { error } = ValidationJson.validate(req.body);
         if (error) {
@@ -726,14 +731,14 @@ const getQuestionRecomendationFromAI=async(req,res)=> {
         const userData = getUserData();
         const testId = req.body.testId;
         const aiInstructions = req.body.aiInstructions;
-        const pastTestAICount= await prisma.testAIQuestionRecommendation.count({
-            where: {
-                test_id: testId,
-            }
-        });
-        if (pastTestAICount >= process.env.MAX_TEST_AI_QUESTION_RECOMENDATION_COUNT) {
-            throw new Error("Max AI Question Recomendations Are Already Generated For This Test");
-        }
+        // const pastTestAICount= await prisma.testAIQuestionRecommendation.count({
+        //     where: {
+        //         test_id: testId,
+        //     }
+        // });
+        // if (pastTestAICount >= process.env.MAX_TEST_AI_QUESTION_RECOMENDATION_COUNT) {
+        //     throw new Error("Max AI Question Recomendations Are Already Generated For This Test");
+        // }
         // Check if the test exists and is created by the user
         const testDetails = await prisma.test.findFirst({
             where: {
@@ -1102,4 +1107,55 @@ const releaseTestResult = async (req, res) => {
     apiLog(req, resBody, statusCode);
     return res.status(statusCode).json(resBody);
 }
-module.exports = { createNewTest, updateTestQuestion, getQuestionTypes, getAllTest, getTestWithId, inviteParticipants, changeTestStatus, getQuestionRecomendationFromAI,getAllTestStatues,getTestParticipantQuestion,changeScoreManually,releaseTestResult };
+
+const testParticipantWarnings=async (req, res) => {
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({
+        inviteId: Joi.number().integer().required()
+    });
+    try {
+        const { error } = ValidationJson.validate(req.query);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid query parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const userData = getUserData();
+        const inviteId = req.query.inviteId;
+        const participantDetails = await prisma.testInvitation.findFirst({
+            where: {
+                id: parseInt(inviteId),
+            },
+            select: {
+                TestParticipant: {
+                    select: {
+                        TestParticipantWarnings: true
+                    }
+                },
+            }
+        });
+        if (!participantDetails) {
+            throw new Error("No participant found");
+        }
+        let allWarnings = participantDetails.TestParticipant.TestParticipantWarnings.map(warning => warning.warning_message).flat();
+
+
+        resBody = {
+            data: allWarnings,
+            message: "Test Participant Warnings Returned Successfully"
+        };
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+module.exports = { createNewTest, updateTestQuestion, getQuestionTypes, getAllTest, getTestWithId, inviteParticipants, changeTestStatus, getQuestionRecomendationFromAI,getAllTestStatues,getTestParticipantQuestion,changeScoreManually,releaseTestResult,testParticipantWarnings };

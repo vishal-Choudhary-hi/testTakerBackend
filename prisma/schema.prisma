@@ -18,6 +18,7 @@ model User {
   updatedAt       DateTime          @updatedAt
   Test            Test[]
   QuestionSection QuestionSection[]
+  TestInvitation TestInvitation[]
 }
 
 model Log {
@@ -75,6 +76,7 @@ model Test {
   start_time                      DateTime
   end_time                        DateTime
   duration_in_seconds             Int
+  total_warning_allowed         Int @default(50)
   status                          TestStatus              @default(draft)
   created_by                      Int
   created_at                      DateTime                @default(now())
@@ -170,6 +172,7 @@ model TestInvitation {
   status                         Boolean           @default(true)
   created_at                     DateTime          @default(now())
   updated_at                     DateTime          @updatedAt
+  InviteUser User @relation(fields: [email], references: [emailId])
   VerificationImage              Documents         @relation(fields: [verification_image_document_id], references: [id])
   Test                           Test              @relation(fields: [test_id], references: [id])
   TestParticipant                TestParticipant?
@@ -188,6 +191,7 @@ model TestParticipant {
   TestInvite            TestInvitation          @relation(fields: [test_invitation_id], references: [id])
   TestScores            TestScore?
   SelectedOptionMapping SelectedOptionMapping[]
+  TestParticipantWarnings ParticipantWarnings[]
 
   @@unique([test_id, test_invitation_id])
   @@unique([test_invitation_id])
@@ -251,4 +255,32 @@ model Documents {
   updated_at          DateTime            @updatedAt
   documentCategoryId  Int
   TestInvitation      TestInvitation[]
+}
+
+model ParticipantWarnings{
+  id                   Int             @id @default(autoincrement())
+  test_participant_id  Int
+  warning_message      String
+  created_at           DateTime        @default(now())
+  updated_at           DateTime        @updatedAt
+  TestParticipant      TestParticipant @relation(fields: [test_participant_id], references: [id])
+}
+
+model TestChats{
+  id Int @id @default(autoincrement())
+  test_id Int
+  message String
+  sender_id Int
+  receiver_id Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  @@index([test_id])
+  @@index([sender_id])
+}
+
+model cronJobLogs{
+  id Int @id @default(autoincrement())
+  name String
+  return_data Json?
+  created_at DateTime @default(now())
 }

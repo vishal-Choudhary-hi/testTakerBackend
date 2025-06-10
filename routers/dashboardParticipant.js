@@ -11,6 +11,7 @@ router.get('/sectionTestQuestions', ParticipantDashboard.sectionTestQuestions);
 router.post('/startTest', ParticipantDashboard.startTest);
 router.post('/saveAnswer', ParticipantDashboard.saveAnswer);
 router.get('/testParticipantResults', ParticipantDashboard.testParticipantResults);
+router.post('/saveTestParticipantWarnings', ParticipantDashboard.saveTestParticipantWarnings);
 
 
 
