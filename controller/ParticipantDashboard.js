@@ -729,7 +729,6 @@ const saveTestParticipantWarnings=async (req, res) => {
                 id: true,
             }
         });
-
         if (!testParticipant) {
             throw new Error("User Not Invited to participate in this test");
         }
@@ -737,12 +736,14 @@ const saveTestParticipantWarnings=async (req, res) => {
         await prisma.participantWarnings.create({
             data: {
                 warning_message: warningMessage,
-                participant_id: testParticipant.id,
+                TestParticipant: {
+                    connect: { id: testParticipant.id }
+                }
             }
         });
-        const participantWarnings=await prisma.testParticipant.findMany({
+        const participantWarnings=await prisma.participantWarnings.findMany({
             where: {
-                id: testParticipant.id,
+                test_participant_id: testParticipant.id,
             },
             select: {
                 warning_message:true
