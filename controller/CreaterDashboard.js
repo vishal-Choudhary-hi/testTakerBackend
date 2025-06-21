@@ -6,6 +6,7 @@ const bulkTestInviteEmailQueue = require('../queue/bulkTestInviteEmailQueue');
 const { sendMail } = require('../utils/EmailUtility');
 const { AITextGeneration } = require('../utils/AITextGenerationUtil');
 const { json } = require('body-parser');
+const { connect } = require('../routers/dashboardCreater');
 
 const createNewTest = async (req, res) => {
     let resBody = null;
@@ -55,7 +56,9 @@ const createNewTest = async (req, res) => {
             start_time: new Date(req.body.testStartTime),
             end_time: new Date(req.body.testEndTime),
             duration_in_seconds: req.body.testDurationInSeconds,
-            created_by: userData.id,
+            CreatedByUser:{
+                connect:{id:userData.id}
+            },
             status: 'draft',
             total_warning_allowed:parseInt(req.body.totalWarningAllowed)??50,
             TestInstructions: { create: testInstructions }
