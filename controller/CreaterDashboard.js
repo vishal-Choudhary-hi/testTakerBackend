@@ -56,11 +56,11 @@ const createNewTest = async (req, res) => {
             start_time: new Date(req.body.testStartTime),
             end_time: new Date(req.body.testEndTime),
             duration_in_seconds: req.body.testDurationInSeconds,
+            status: 'draft',
+            total_warning_allowed:parseInt(req.body.totalWarningAllowed)??50,
             CreatedByUser:{
                 connect:{id:userData.id}
             },
-            status: 'draft',
-            total_warning_allowed:parseInt(req.body.totalWarningAllowed)??50,
             TestInstructions: { create: testInstructions }
         };
         let testData;
