@@ -57,7 +57,7 @@ const createNewTest = async (req, res) => {
             duration_in_seconds: req.body.testDurationInSeconds,
             created_by: userData.id,
             status: 'draft',
-            total_warning_allowed:req.body.totalWarningAllowed??50,
+            total_warning_allowed:parseInt(req.body.totalWarningAllowed)??50,
             TestInstructions: { create: testInstructions }
         };
         let testData;
@@ -544,7 +544,6 @@ const inviteParticipants = async (req, res) => {
                 },
                 update: { status: true, verification_image_document_id: invitation.verification_image_document_id },
                 create: {
-                    email: invitation.email,
                     name: invitation.name,
                     created_by: invitation.created_by,
                     additional_details: invitation.additional_details,
@@ -554,6 +553,9 @@ const inviteParticipants = async (req, res) => {
                     },
                     VerificationImage: {
                         connect: { id: invitation.verification_image_document_id }
+                    },
+                    InviteUser:{
+                        connect:{emailId:invitation.email}
                     }
                 }
             })
@@ -710,13 +712,13 @@ const getQuestionRecomendationFromAI=async(req,res)=> {
         aiInstructions:Joi.object({
             purpose:Joi.string().required(),
             questionTypes:Joi.array().items(Joi.object({
-                questionTypeId:Joi.number().integer().required(),
-                questionCount:Joi.number().integer().required(),
+                id:Joi.number().integer().required(),
+                count:Joi.number().integer().required(),
             })).required(),
             topics:Joi.array().items(Joi.string()).required(),
             difficultyLevels:Joi.array().items(Joi.string()).required(),
             subjects:Joi.array().items(Joi.string()).required(),
-        }).required()
+        }).required(),
     });
     try {
         
@@ -729,17 +731,22 @@ const getQuestionRecomendationFromAI=async(req,res)=> {
             return res.status(statusCode).json(resBody);
         }
         const userData = getUserData();
-        const testId = req.body.testId;
+        const testId = parseInt(req.body.testId);
         const aiInstructions = req.body.aiInstructions;
-        // const pastTestAICount= await prisma.testAIQuestionRecommendation.count({
-        //     where: {
-        //         test_id: testId,
-        //     }
-        // });
-        // if (pastTestAICount >= process.env.MAX_TEST_AI_QUESTION_RECOMENDATION_COUNT) {
-        //     throw new Error("Max AI Question Recomendations Are Already Generated For This Test");
-        // }
-        // Check if the test exists and is created by the user
+        const prevAIResponse=await prisma.aiTestQuestionSuggestion.findFirst({
+            where:{
+                test_id:testId
+            }
+        });
+        let ai_responses=prevAIResponse?.ai_response;
+        let prevQuestions=[];
+        if(ai_responses){
+            ai_responses.forEach((ai_response)=>{
+                prevQuestions.push(ai_response.question);
+            });
+        }else{
+            ai_responses=[];
+        }
         const testDetails = await prisma.test.findFirst({
             where: {
                 id: parseInt(testId),
@@ -760,10 +767,13 @@ const getQuestionRecomendationFromAI=async(req,res)=> {
             id: q.id,
             label: q.label,
           }));
-      
+        const labels = questionTypes.map(qType =>
+            allQuestionTypes.find(q => q.id == qType.id)?.label || "Unknown Type"
+        );
         let inputString = {
-          purpose: `${purpose} Generate 40 questions of type "${allQuestionTypes.find(q => q.id === questionTypes.questionTypeId)?.label}" for subject(s): ${subjects.join(", ")}. Focus on topics: ${topics.join(", ")}. Difficulty levels should include: ${difficultyLevels.join(", ")}. Include both theory and numerical questions where relevant. For MCQs, provide exactly 4 options and mark the correct one(s).Please return the json only in the provided response_format , and dont include any other text.`,
+          purpose: `${purpose} Generate questions of type ${labels} for subject(s): ${subjects.join(", ")}. Focus on topics: ${topics.join(", ")}. Difficulty levels should include: ${difficultyLevels.join(", ")}. Include both theory and numerical questions where relevant. For MCQs, provide exactly 4 options and mark the correct one(s).Do not repeat questions present in the previous questions json array.Please return the json only in the provided response_format , and dont include any other text.`,
           question_types: sanitizedQuestionTypes,
+          previous_questions:prevQuestions,
           response_format: {
             questions: [
               {
@@ -774,7 +784,7 @@ const getQuestionRecomendationFromAI=async(req,res)=> {
                     is_correct: true
                   }
                 ],
-                question_type_id: questionTypes.questionTypeId
+                question_type_id: questionTypes.id
               }
             ]
           }
@@ -784,23 +794,77 @@ const getQuestionRecomendationFromAI=async(req,res)=> {
         if(!aiResponse.status) {
             throw new Error("AI Text Generation Failed");
         }
-        data =aiResponse.aiResponse;
-
-        // Save the AI question recommendation to the database
-        await prisma.testAIQuestionRecomendation.create({
-            data: {
-                test_id: testId,
-                question_recomendation: data,
-                created_by: userData.id
+        let data = aiResponse.aiResponse;
+        let questions=[];
+        if (typeof data === "string") {
+            data = data.replace(/```json|```/g, "").trim();
+            try {
+                data = JSON.parse(data);
+                questions=data.questions;
+                let updatedAIResponse=[...ai_responses,...questions];
+                await prisma.aiTestQuestionSuggestion.upsert({
+                    where:{
+                        test_id:testId
+                    },
+                    update:{
+                        creator_request:aiInstructions,
+                        ai_response:updatedAIResponse,
+                        creator_request:aiInstructions
+                    },
+                    create:{
+                        test_id:testId,
+                        creator_request:aiInstructions,
+                        ai_response:updatedAIResponse,
+                        creator_request:aiInstructions
+                    }
+                })
+            } catch (error) {
+                throw new Error("Invalid response from the AI "+ error);
             }
-        });
-
-        data = JSON.parse(data);
-
-        resBody = {
-            data,
-            message: "AI Question Recomendation Fetched Successfully",
         }
+        resBody = {
+            data:questions,
+            message: "AI Question Recommendation Fetched Successfully",
+        }
+    } catch (error) {
+        statusCode = 400;
+        resBody = {
+            'data': null,
+            'message': error.message
+        };
+        console.error(error);
+    }
+    apiLog(req, resBody, statusCode);
+    return res.status(statusCode).json(resBody);
+}
+
+const getAISuggestedQuestions=async(req,res)=>{
+    let resBody = null;
+    let statusCode = 200;
+    const ValidationJson = Joi.object({
+        testId: Joi.number().integer().required(),
+    });
+    try {
+        const { error } = ValidationJson.validate(req.query);
+        if (error) {
+            const errorMessage = error.details[0]?.message || "Invalid query parameters";
+            statusCode = 400;
+            resBody = { error: errorMessage };
+            apiLog(req, resBody, statusCode);
+            return res.status(statusCode).json(resBody);
+        }
+        const {testId}=req.query;
+        const aiTestQuestionSuggestion=await prisma.aiTestQuestionSuggestion.findFirst({
+            where:{
+                test_id:parseInt(testId)
+            }
+        })
+        const ai_response=aiTestQuestionSuggestion?.ai_response;
+        const creator_request=aiTestQuestionSuggestion?.creator_request;
+        resBody = {
+            data: {ai_response,creator_request},
+            message: "Test Participant Questions Returned Successfully"
+        };
     } catch (error) {
         statusCode = 400;
         resBody = {
@@ -1158,4 +1222,4 @@ const testParticipantWarnings=async (req, res) => {
     apiLog(req, resBody, statusCode);
     return res.status(statusCode).json(resBody);
 }
-module.exports = { createNewTest, updateTestQuestion, getQuestionTypes, getAllTest, getTestWithId, inviteParticipants, changeTestStatus, getQuestionRecomendationFromAI,getAllTestStatues,getTestParticipantQuestion,changeScoreManually,releaseTestResult,testParticipantWarnings };
+module.exports = { createNewTest, updateTestQuestion, getQuestionTypes, getAllTest, getTestWithId, inviteParticipants, changeTestStatus, getQuestionRecomendationFromAI,getAllTestStatues,getTestParticipantQuestion,changeScoreManually,releaseTestResult,testParticipantWarnings, getAISuggestedQuestions };

@@ -14,5 +14,6 @@ router.get('/getTestParticipantQuestion', CreaterDashboard.getTestParticipantQue
 router.post('/changeScoreManually', CreaterDashboard.changeScoreManually);
 router.post('/releaseTestResult', CreaterDashboard.releaseTestResult);
 router.get('/testParticipantWarnings', CreaterDashboard.testParticipantWarnings);
+router.get('/getAISuggestedQuestions', CreaterDashboard.getAISuggestedQuestions);
 
 module.exports = router;

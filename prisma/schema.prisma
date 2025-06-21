@@ -87,6 +87,7 @@ model Test {
   TestParticipants                TestParticipant[]
   SelectedOptionMapping           SelectedOptionMapping[]
   QuestionSection                 QuestionSection[]
+  aiTestQuestionSuggestion aiTestQuestionSuggestion[]
 }
 
 model TestInstruction {
@@ -276,6 +277,16 @@ model TestChats{
   updated_at DateTime @updatedAt
   @@index([test_id])
   @@index([sender_id])
+}
+model aiTestQuestionSuggestion{
+  id Int @id @default(autoincrement())
+  test_id Int
+  ai_response Json
+  creator_request Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  Test Test @relation(fields: [test_id], references: [id])
+  @@unique([test_id])
 }
 
 model cronJobLogs{
