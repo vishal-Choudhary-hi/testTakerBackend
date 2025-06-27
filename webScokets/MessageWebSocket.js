@@ -10,9 +10,10 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-
+      console.log("Received message:", data);
       // First message should be registration: { type: "register", userId: "user1" }
       if (data.type === 'register') {
+        console.log("Registering user:", data.userId);
         userId = data.userId;
         clients.set(userId, ws);
         return;
@@ -20,6 +21,7 @@ wss.on('connection', (ws) => {
 
       // Message sending: { type: "message", to: "user2", content: "hello" }
       if (data.type === 'message' && data.to && data.content) {
+        console.log(`Sending message from ${userId} to ${data.to}: ${data.content}`);
         const target = clients.get(data.to);
         let chatData={
           test_id:parseInt(data.testId),
@@ -34,6 +36,7 @@ wss.on('connection', (ws) => {
         ).catch((err) => {
           console.error("Error saving message to database:", err);
         });
+        console.log("Chat data saved to database:", chatData);
         if (target && target.readyState === WebSocket.OPEN) {
           target.send(JSON.stringify({
             from: userId,
