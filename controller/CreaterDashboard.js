@@ -473,7 +473,7 @@ const getTestWithId = async (req, res) => {
         });
         const now = new Date();
         const testEndTime = new Date(testDetails.end_time);
-        if (testEndTime > now && testDetails.status === 'live') {
+        if (testEndTime < now && testDetails.status === 'live') {
             await prisma.test.update({
                 where: { id: parseInt(testId) },
                 data: {
