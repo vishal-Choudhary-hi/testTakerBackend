@@ -11,12 +11,10 @@ module.exports = (server) => {
     ws.on("message", (message) => {
       try {
         const data = JSON.parse(message);
-        console.log("Received:", data);
 
         if (data.type === "register") {
           userId = data.userId;
           clients.set(userId, ws);
-          console.log("Registered:", userId);
           return;
         }
 
