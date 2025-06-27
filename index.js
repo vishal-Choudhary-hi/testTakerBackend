@@ -1,20 +1,26 @@
 const express = require("express");
-const routes = require("./routes")
+const routes = require("./routes");
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const http = require("http");
+require("dotenv").config();
 
-require('dotenv').config();
 const app = express();
-const port = process.env.PORT;
+const port = process.env.PORT || 8080;
 
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static('public'));
-app.use('/', routes);
-// require('./cronProcess/Producer'); // Start the cron job producer
-// require('./cronProcess/worker'); // Start the cron job worker
-require('./webScokets/MessageWebSocket'); // Start the WebSocket server
+app.use(express.static("public"));
+app.use("/", routes);
 
-app.listen(port, () => {
-    console.log(`Server listening on port: ${port}`);
-})
+// Create shared HTTP server
+const server = http.createServer(app);
+
+// ✅ Pass server to WebSocket initializer
+require("./webScokets/MessageWebSocket")(server);
+
+// Start server
+server.listen(port, () => {
+  console.log(`Server and WebSocket listening on port: ${port}`);
+});
